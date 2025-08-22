@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Donut SMP Calculator — Poli</title>
+  <title>Donut SMP Calculator — Poli (updated)</title>
   <!-- Tailwind CSS (CDN) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <!-- Lucide Icons -->
@@ -42,7 +42,7 @@
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 sm:gap-6">
         <div class="max-w-2xl">
           <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold mb-3 tracking-tight leading-tight">Donut <span class="text-indigo-600">SMP</span> Calculator</h1>
-          <p class="text-sm text-gray-500">Calcul rapide et propre des productions — UI minimaliste, animations douces.</p>
+          <p class="text-sm text-gray-500">T_T</p>
         </div>
         <div class="flex items-center gap-3 w-full sm:w-auto">
           <button id="resetAll" class="btn btn-outline flex-1 sm:flex-none flex items-center gap-2 shadow-sm hover:translate-y-[-1px] motion-safe:transition-transform">
@@ -87,8 +87,7 @@
                   <label class="block text-sm text-gray-600">Number of Spawners</label>
                   <input id="spawners" type="number" min="0" step="1" class="w-full border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
 
-                  <label class="block text-sm text-gray-600">Rate per Spawner (bones/min)</label>
-                  <input id="ratePerSpawner" type="number" min="0" step="0.01" placeholder="2.07" class="w-full border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-200" />
+                  <!-- rate per spawner removed: bones per minute is computed from the provided formula -->
 
                   <label class="block text-sm text-gray-600">Price per Bone ($) — facultatif</label>
                   <input id="pricePerBone" type="number" min="0" step="0.01" placeholder="0.00" class="w-full border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-200" />
@@ -225,8 +224,9 @@
         </div>
       </section>
 
-      <!-- Skelly Calculator -->
+      <!-- Skelly Calculator (unchanged) -->
       <section id="tab-skelly" class="space-y-6 hidden animate-fade-up" role="tabpanel">
+        <!-- original skelly section kept as-is -->
         <div class="border border-gray-200 rounded-2xl overflow-hidden bg-white shadow-sm">
           <div class="bg-gradient-to-r from-pink-50 to-white border-b border-gray-100 p-5">
             <h2 class="flex items-center gap-3 text-xl font-semibold">
@@ -336,7 +336,16 @@
   </div>
 
   <script>
-    /* Original logic preserved with small accessibility & animation tweaks */
+    /* Updated logic:
+       - The "Rate per Spawner" input was removed.
+       - Bones-per-minute is computed from the provided formula as a function of number of spawners.
+       - Enforce 0 spawners => 0 bones.
+
+       Formula used (exactly as provided):
+       y = -0.39567 * e^{-0.00134606 * x + 8.24358} + 1505.35
+
+    */
+
     // -------- Utilities --------
     const clampNumber = (n, min = 0, max = Number.MAX_SAFE_INTEGER) => {
       if (n === null || n === undefined || Number.isNaN(n)) return min;
@@ -353,13 +362,14 @@
     const formatDuration = (minutes) => { if (minutes < 60) return `${formatNumber(minutes)} min`; if (minutes < 1440) return `${formatNumber(minutes / 60, 1)} h`; if (minutes < 10080) return `${formatNumber(minutes / 1440, 1)} d`; return `${formatNumber(minutes / 10080, 1)} w`; };
 
     // -------- State --------
-    const state = { spawners: 1, ratePerSpawner: 2.07, timeUnit1: 'h', duration1: 1, pricePerBone: 0, minutesPerSkelly: 500, accounts: 1, timeUnit2: 'h', duration2: 8, targetSkelly: 1 };
+    // ratePerSpawner removed. bones-per-minute will be computed from formula below.
+    const state = { spawners: 1, timeUnit1: 'h', duration1: 1, pricePerBone: 0, minutesPerSkelly: 500, accounts: 1, timeUnit2: 'h', duration2: 8, targetSkelly: 1 };
 
     // DOM refs
     const $ = (s) => document.querySelector(s);
     const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-    const spawnersEl = $('#spawners'); const ratePerSpawnerEl = $('#ratePerSpawner'); const pricePerBoneEl = $('#pricePerBone'); const duration1El = $('#duration1');
+    const spawnersEl = $('#spawners'); const pricePerBoneEl = $('#pricePerBone'); const duration1El = $('#duration1');
     const minutesPerSkellyEl = $('#minutesPerSkelly'); const accountsEl = $('#accounts'); const duration2El = $('#duration2'); const targetSkellyEl = $('#targetSkelly');
 
     const bonesPerMinuteEl = $('#bonesPerMinute'); const bonesPerHourEl = $('#bonesPerHour'); const totalDurationEl = $('#totalDuration'); const totalBonesEl = $('#totalBones');
@@ -373,11 +383,23 @@
     const resetAllBtn = $('#resetAll'); const shareBtn = $('#shareLink'); const shareText = $('#shareText');
     const tabButtons = $$('.tab-trigger'); const tabBones = $('#tab-bones'); const tabSkelly = $('#tab-skelly');
 
-    function updateSlider(which) { /* kept for compatibility if sliders added later */ }
+    // -------- Formula --------
+    function bonesPerMinuteFromSpawners(x) {
+      // Provided formula: y = -0.39567 * e^{-0.00134606 * x + 8.24358} + 1505.35
+      const y = -0.39567 * Math.exp(-0.00134606 * x + 8.24358) + 1505.35;
+      // Enforce 0 spawners => 0 bones, and ensure non-negative
+      if (x === 0) return 0;
+      return Math.max(0, y);
+    }
 
     function computeBones() {
-      const validSpawners = clampNumber(state.spawners, 0); const validRate = clampNumber(state.ratePerSpawner, 0); const validPrice = clampNumber(state.pricePerBone, 0);
-      const perMinute = validSpawners * validRate; const perHour = perMinute * 60; const totalMinutes = toMinutes(state.duration1, state.timeUnit1); const total = perMinute * totalMinutes;
+      const validSpawners = clampNumber(state.spawners, 0);
+      const validPrice = clampNumber(state.pricePerBone, 0);
+      // bones-per-minute is computed by the formula, not by ratePerSpawner
+      const perMinute = bonesPerMinuteFromSpawners(validSpawners);
+      const perHour = perMinute * 60;
+      const totalMinutes = toMinutes(state.duration1, state.timeUnit1);
+      const total = perMinute * totalMinutes;
       return { perMinute, perHour, total, totalMinutes, valuePerMinute: perMinute * validPrice, valuePerHour: perHour * validPrice, totalValue: total * validPrice, priceEnabled: validPrice > 0 };
     }
 
@@ -421,7 +443,6 @@
 
     function bind() {
       spawnersEl.addEventListener('input', e => { state.spawners = clampNumber(parseFloat(e.target.value) || 0, 0); render(); });
-      ratePerSpawnerEl.addEventListener('input', e => { state.ratePerSpawner = clampNumber(parseFloat(e.target.value) || 0, 0); render(); });
       pricePerBoneEl.addEventListener('input', e => { state.pricePerBone = clampNumber(parseFloat(e.target.value) || 0, 0); render(); });
       duration1El.addEventListener('input', e => { state.duration1 = clampNumber(parseFloat(e.target.value) || 0, 0); render(); });
 
@@ -445,7 +466,7 @@
       $('#copySkellyImageBtn2').addEventListener('click', () => { const s = computeSkelly(); copyAsImage(s, 'skelly'); });
 
       resetAllBtn.addEventListener('click', () => {
-        state.spawners = 1; state.ratePerSpawner = 2.07; state.timeUnit1 = 'h'; state.duration1 = 1; state.pricePerBone = 0;
+        state.spawners = 1; state.timeUnit1 = 'h'; state.duration1 = 1; state.pricePerBone = 0;
         state.minutesPerSkelly = 500; state.accounts = 1; state.timeUnit2 = 'h'; state.duration2 = 8; state.targetSkelly = 1;
         hydrateInputs(); render();
       });
@@ -454,7 +475,7 @@
     }
 
     function hydrateInputs() {
-      spawnersEl.value = state.spawners; ratePerSpawnerEl.value = state.ratePerSpawner; pricePerBoneEl.value = state.pricePerBone; duration1El.value = state.duration1;
+      spawnersEl.value = state.spawners; pricePerBoneEl.value = state.pricePerBone; duration1El.value = state.duration1;
       duration2El.value = state.duration2; minutesPerSkellyEl.value = state.minutesPerSkelly; accountsEl.value = state.accounts; targetSkellyEl.value = state.targetSkelly;
       $$('.time1').forEach(b => b.classList.toggle('bg-black', b.dataset.unit === state.timeUnit1)); $$('.time1').forEach(b => b.classList.toggle('text-white', b.dataset.unit === state.timeUnit1));
       $$('.time2').forEach(b => b.classList.toggle('bg-black', b.dataset.unit === state.timeUnit2)); $$('.time2').forEach(b => b.classList.toggle('text-white', b.dataset.unit === state.timeUnit2));
